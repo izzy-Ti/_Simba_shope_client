@@ -22,11 +22,18 @@ export const AuthProvider = ({ children }) => {
       try {
         const storedUser = apiUtils.getStoredUser();
         if (storedUser && apiUtils.isAuthenticated()) {
-          // Verify token is still valid
+          // Verify token is still valid with backend
           const response = await authAPI.isAuth();
           if (response.success) {
-            setUser(response.user);
-            setIsAuthenticated(true);
+            // Get fresh user data from backend
+            const userDataResponse = await authAPI.getUserData();
+            if (userDataResponse.success) {
+              setUser(userDataResponse.userData);
+              setIsAuthenticated(true);
+            } else {
+              // Token is invalid, clear stored data
+              apiUtils.clearUser();
+            }
           } else {
             // Token is invalid, clear stored data
             apiUtils.clearUser();
@@ -49,15 +56,24 @@ export const AuthProvider = ({ children }) => {
       const response = await authAPI.login(credentials);
       
       if (response.success) {
-        // Get user data from the API
+        // Get user data using the backend API
+        const email = credentials.email;
+        localStorage.setItem('userEmail', email);
+        
+        // For now, we'll use a temporary userId since login doesn't return it
+        // In a real implementation, the backend should return userId in login response
+        const tempUserId = `temp-${Date.now()}`;
+        localStorage.setItem('userId', tempUserId);
+        
+        // Get user data from backend
         const userDataResponse = await authAPI.getUserData();
         
         if (userDataResponse.success) {
-          const userData = userDataResponse.user;
+          const userData = userDataResponse.userData;
           
           // Store user data and token
           apiUtils.storeUser(userData, 'cookie_auth');
-          localStorage.setItem('userId', userData.id);
+          localStorage.setItem('userId', userData.id || tempUserId);
           
           setUser(userData);
           setIsAuthenticated(true);
@@ -80,7 +96,20 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       setLoading(true);
-      const response = await authAPI.register(userData);
+      
+      // Ensure all required fields are included
+      const registrationData = {
+        email: userData.email,
+        password: userData.password,
+        name: userData.name || `${userData.firstName} ${userData.lastName}`,
+        firstName: userData.firstName || userData.name?.split(' ')[0] || '',
+        lastName: userData.lastName || userData.name?.split(' ').slice(1).join(' ') || '',
+        username: userData.username || userData.email.split('@')[0],
+        phone: userData.phone || '',
+        address: userData.address || ''
+      };
+      
+      const response = await authAPI.register(registrationData);
       
       if (response.success) {
         return { success: true, message: response.message };
@@ -143,10 +172,15 @@ export const AuthProvider = ({ children }) => {
 
   const getUserData = async () => {
     try {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        return { success: false, message: 'User not logged in' };
+      }
+      
       const response = await authAPI.getUserData();
       if (response.success) {
-        setUser(response.user);
-        return { success: true, user: response.user };
+        setUser(response.userData);
+        return { success: true, user: response.userData };
       }
       return { success: false, message: response.message };
     } catch (error) {

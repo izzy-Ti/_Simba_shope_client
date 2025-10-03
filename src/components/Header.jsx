@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useProducts } from '../contexts/ProductsContext';
+import { useCart } from '../contexts/CartContext';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -9,10 +9,10 @@ const Header = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
-  const { getCartTotals } = useProducts();
+  const { getCartItemCount } = useCart();
   const profileDropdownRef = useRef(null);
 
-  const cartTotals = getCartTotals();
+  const cartItemCount = getCartItemCount();
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -167,7 +167,7 @@ const Header = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <Link to="/cart" style={{ position: 'relative', textDecoration: 'none', color: '#374151' }}>
               <div style={{ fontSize: '24px' }}>🛒</div>
-              {cartTotals.itemCount > 0 && (
+              {cartItemCount > 0 && (
                 <span style={{
                   position: 'absolute',
                   top: '-8px',
@@ -182,7 +182,7 @@ const Header = () => {
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
-                  {cartTotals.itemCount}
+                  {cartItemCount}
                 </span>
               )}
             </Link>

@@ -17,7 +17,16 @@ export const SellerProvider = ({ children }) => {
   const [sellerOrders, setSellerOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const { isAuthenticated } = useAuth();
+  
+  // Safely get auth context
+  let isAuthenticated = false;
+  try {
+    const authContext = useAuth();
+    isAuthenticated = authContext.isAuthenticated;
+  } catch (error) {
+    // Auth context not available yet
+    console.log('Auth context not ready yet');
+  }
 
   // Load seller data when user is authenticated
   useEffect(() => {

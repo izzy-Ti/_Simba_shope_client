@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrders } from '../contexts/OrdersContext';
+import EmailVerification from '../components/EmailVerification';
 
 const Profile = () => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -13,15 +14,16 @@ const Profile = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
 
   const { user, isAuthenticated, getUserData, loading: authLoading } = useAuth();
   const { orders, loadOrderHistory, loading: ordersLoading } = useOrders();
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      // Initialize profile data from user context
+      // Initialize profile data from user context with all available fields
       setProfileData({
-        firstName: user.name?.split(' ')[0] || user.username || '',
+        firstName: user.name?.split(' ')[0] || '',
         lastName: user.name?.split(' ').slice(1).join(' ') || '',
         email: user.email || '',
         phone: user.phone || '',
@@ -32,6 +34,13 @@ const Profile = () => {
       loadOrderHistory();
     }
   }, [isAuthenticated, user, loadOrderHistory]);
+
+  // Load fresh user data when profile tab is active
+  useEffect(() => {
+    if (activeTab === 'profile' && isAuthenticated) {
+      getUserData();
+    }
+  }, [activeTab, isAuthenticated, getUserData]);
 
   const handleSaveProfile = async () => {
     setLoading(true);
@@ -164,9 +173,47 @@ const Profile = () => {
             }}>
               {user?.name || user?.username || 'User'}
             </h3>
-            <p style={{ color: '#6b7280', fontSize: '14px' }}>
+            <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '5px' }}>
               {user?.email || 'No email'}
             </p>
+            {user?.username && (
+              <p style={{ color: '#6b7280', fontSize: '12px', marginBottom: '5px' }}>
+                👤 @{user.username}
+              </p>
+            )}
+            {user?.phone && (
+              <p style={{ color: '#6b7280', fontSize: '12px', marginBottom: '5px' }}>
+                📞 {user.phone}
+              </p>
+            )}
+            {user?.IsAccVerified !== undefined && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+                <p style={{ 
+                  color: user.IsAccVerified ? '#059669' : '#dc2626', 
+                  fontSize: '12px', 
+                  fontWeight: '500',
+                  margin: 0
+                }}>
+                  {user.IsAccVerified ? '✅ Account Verified' : '❌ Account Not Verified'}
+                </p>
+                {!user.IsAccVerified && (
+                  <button
+                    onClick={() => setShowEmailVerification(true)}
+                    style={{
+                      backgroundColor: '#059669',
+                      color: 'white',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      border: 'none',
+                      fontSize: '10px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Verify
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <nav>
@@ -585,6 +632,10 @@ const Profile = () => {
           )}
         </div>
       </div>
+      
+      {showEmailVerification && (
+        <EmailVerification onClose={() => setShowEmailVerification(false)} />
+      )}
     </div>
   );
 };

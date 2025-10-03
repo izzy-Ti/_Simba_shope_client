@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { reviewsAPI, apiUtils } from '../services/api';
-import { useAuth } from './AuthContext';
 
 const ReviewsContext = createContext();
 
@@ -15,12 +14,8 @@ export const useReviews = () => {
 export const ReviewsProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const { isAuthenticated } = useAuth();
 
   const addReview = useCallback(async (productId, reviewData) => {
-    if (!isAuthenticated) {
-      return { success: false, message: 'Please login to add reviews' };
-    }
 
     try {
       setLoading(true);
@@ -39,7 +34,7 @@ export const ReviewsProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, []);
 
   const getProductRating = useCallback(async (productId) => {
     try {

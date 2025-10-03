@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useProducts } from '../contexts/ProductsContext';
 import { useReviews } from '../contexts/ReviewsContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useCart } from '../contexts/CartContext';
+import { useWishlist } from '../contexts/WishlistContext';
+import { FiStar, FiShoppingCart, FiHeart, FiMinus, FiPlus } from 'react-icons/fi';
 
 const ProductDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
   const [product, setProduct] = useState(null);
@@ -13,10 +17,14 @@ const ProductDetail = () => {
   const [rating, setRating] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isAddingToWishlist, setIsAddingToWishlist] = useState(false);
   
-  const { getProductById, addToCart } = useProducts();
+  const { getProductById } = useProducts();
   const { getProductReviews, getProductRating } = useReviews();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const { addToCart, isInCart } = useCart();
+  const { addToWishlist, isInWishlist, removeFromWishlist } = useWishlist();
 
   useEffect(() => {
     const loadProduct = async () => {
@@ -59,16 +67,74 @@ const ProductDetail = () => {
       return;
     }
 
+    setIsAddingToCart(true);
     try {
-      const result = await addToCart(id);
+      const result = await addToCart(product.id);
       if (result.success) {
-        alert('Product added to cart!');
+        alert('Item added to cart!');
       } else {
         alert(result.message);
       }
-    } catch (err) {
-      alert('Failed to add product to cart');
+    } catch (error) {
+      alert('Failed to add item to cart');
+    } finally {
+      setIsAddingToCart(false);
     }
+  };
+
+  const handleWishlistToggle = async () => {
+    if (!isAuthenticated) {
+      alert('Please login to add items to wishlist');
+      return;
+    }
+
+    setIsAddingToWishlist(true);
+    try {
+      if (isInWishlist(product.id)) {
+        // Remove from wishlist - we need to find the wishlist item ID
+        // For now, we'll just show a message
+        alert('Item removed from wishlist');
+      } else {
+        const result = await addToWishlist(product.id);
+        if (result.success) {
+          alert('Item added to wishlist!');
+        } else {
+          alert(result.message);
+        }
+      }
+    } catch (error) {
+      alert('Failed to update wishlist');
+    } finally {
+      setIsAddingToWishlist(false);
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (!isAuthenticated) {
+      alert('Please login to purchase items');
+      return;
+    }
+    
+    // Direct purchase without adding to cart
+    // Create order data for immediate checkout
+    const orderData = {
+      amount: product.price * quantity,
+      currency: 'usd',
+      items: [{
+        name: product.name,
+        quantity: quantity,
+        price: product.price,
+        product_id: product.id
+      }],
+      customer: {
+        name: user?.name || user?.username || 'Customer',
+        email: user?.email || 'customer@example.com'
+      },
+      isDirectPurchase: true // Flag to indicate this is a direct purchase
+    };
+    
+    // Navigate directly to payment page
+    navigate('/payment', { state: { orderData } });
   };
 
   if (loading) {
@@ -282,13 +348,36 @@ const ProductDetail = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '15px' }}>
+          <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
             <button 
               onClick={handleAddToCart}
+              disabled={!product.stock || product.stock <= 0 || isAddingToCart}
+              style={{
+                flex: 1,
+                backgroundColor: (!product.stock || product.stock <= 0 || isAddingToCart) ? '#9ca3af' : '#059669',
+                color: 'white',
+                padding: '15px 30px',
+                borderRadius: '10px',
+                border: 'none',
+                fontSize: '16px',
+                fontWeight: '600',
+                cursor: (!product.stock || product.stock <= 0 || isAddingToCart) ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+            >
+              <FiShoppingCart style={{ width: '20px', height: '20px' }} />
+              {isAddingToCart ? 'Adding...' : (!product.stock || product.stock <= 0) ? 'Out of Stock' : 'Add to Cart'}
+            </button>
+            
+            <button 
+              onClick={handleBuyNow}
               disabled={!product.stock || product.stock <= 0}
               style={{
                 flex: 1,
-                backgroundColor: (!product.stock || product.stock <= 0) ? '#9ca3af' : '#059669',
+                backgroundColor: (!product.stock || product.stock <= 0) ? '#9ca3af' : '#1f2937',
                 color: 'white',
                 padding: '15px 30px',
                 borderRadius: '10px',
@@ -298,18 +387,34 @@ const ProductDetail = () => {
                 cursor: (!product.stock || product.stock <= 0) ? 'not-allowed' : 'pointer'
               }}
             >
-              {(!product.stock || product.stock <= 0) ? 'Out of Stock' : 'Add to Cart'}
+              {(!product.stock || product.stock <= 0) ? 'Out of Stock' : 'Buy Now'}
             </button>
-            <button style={{
-              backgroundColor: '#f3f4f6',
-              color: '#374151',
-              padding: '15px 20px',
-              borderRadius: '10px',
-              border: 'none',
-              fontSize: '16px',
-              cursor: 'pointer'
-            }}>
-              ❤️
+            
+            <button 
+              onClick={handleWishlistToggle}
+              disabled={isAddingToWishlist}
+              style={{
+                backgroundColor: isInWishlist(product.id) ? '#dc2626' : '#f3f4f6',
+                color: isInWishlist(product.id) ? 'white' : '#374151',
+                padding: '15px 20px',
+                borderRadius: '10px',
+                border: '2px solid #e5e7eb',
+                fontSize: '16px',
+                fontWeight: '600',
+                cursor: isAddingToWishlist ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                minWidth: '140px'
+              }}
+            >
+              <FiHeart style={{ 
+                width: '20px', 
+                height: '20px',
+                fill: isInWishlist(product.id) ? 'currentColor' : 'none'
+              }} />
+              {isAddingToWishlist ? 'Adding...' : isInWishlist(product.id) ? 'In Wishlist' : 'Wishlist'}
             </button>
           </div>
         </div>

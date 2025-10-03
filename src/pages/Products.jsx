@@ -2,10 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useProducts } from '../contexts/ProductsContext';
 import { useAuth } from '../contexts/AuthContext';
+import { FiSearch, FiFilter, FiX, FiChevronDown, FiChevronUp, FiGrid, FiList } from 'react-icons/fi';
+import ProductCard from '../components/ProductCard';
 
 const Products = () => {
   const [searchParams] = useSearchParams();
-  const { products, loading, error, filterProducts, addToCart } = useProducts();
+  const { products, loading, error, filterProducts } = useProducts();
   const { isAuthenticated } = useAuth();
   const [filters, setFilters] = useState({
     category: searchParams.get('category') || '',
@@ -14,6 +16,9 @@ const Products = () => {
     minPrice: '',
     maxPrice: ''
   });
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
 
   useEffect(() => {
     const applyFilters = async () => {
@@ -29,9 +34,17 @@ const Products = () => {
     };
 
     applyFilters();
-  }, [filters.category, filters.search, filters.minPrice, filters.maxPrice, filters.sortBy]);
+  }, [filters.category, filters.search, filters.minPrice, filters.maxPrice, filters.sortBy, filterProducts]);
 
-  const categories = ['All', 'Electronics', 'Fashion', 'Home', 'Sports'];
+  const categories = ['All', 'Electronics', 'Fashion', 'Home', 'Sports', 'Books', 'Toys', 'Beauty', 'Automotive', 'Garden'];
+  const sortOptions = [
+    { value: 'newest', label: 'Newest First' },
+    { value: 'oldest', label: 'Oldest First' },
+    { value: 'price-low', label: 'Price: Low to High' },
+    { value: 'price-high', label: 'Price: High to Low' },
+    { value: 'name-asc', label: 'Name: A to Z' },
+    { value: 'name-desc', label: 'Name: Z to A' }
+  ];
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({
@@ -40,18 +53,30 @@ const Products = () => {
     }));
   };
 
-  const handleAddToCart = async (productId) => {
-    if (!isAuthenticated) {
-      alert('Please login to add items to cart');
-      return;
-    }
+  const handleSearch = (e) => {
+    e.preventDefault();
+    handleFilterChange('search', searchQuery);
+  };
 
-    const result = await addToCart(productId);
-    if (result.success) {
-      alert('Product added to cart!');
-    } else {
-      alert(result.message);
-    }
+  const clearFilters = () => {
+    setFilters({
+      category: '',
+      search: '',
+      sortBy: 'newest',
+      minPrice: '',
+      maxPrice: ''
+    });
+    setSearchQuery('');
+  };
+
+  const getActiveFiltersCount = () => {
+    let count = 0;
+    if (filters.category) count++;
+    if (filters.search) count++;
+    if (filters.minPrice) count++;
+    if (filters.maxPrice) count++;
+    if (filters.sortBy !== 'newest') count++;
+    return count;
   };
 
   if (loading) {
@@ -103,342 +128,329 @@ const Products = () => {
         </h1>
         <p style={{ color: '#6b7280', fontSize: '18px' }}>
           Discover our wide range of quality products
-          </p>
+        </p>
+      </div>
+
+      {/* Search and Filter Bar */}
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '15px',
+        padding: '25px',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        marginBottom: '30px'
+      }}>
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Search Input */}
+          <form onSubmit={handleSearch} style={{ flex: 1, minWidth: '300px' }}>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px 12px 45px',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '10px',
+                  fontSize: '16px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <FiSearch style={{
+                position: 'absolute',
+                left: '15px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#6b7280',
+                fontSize: '20px'
+              }} />
+            </div>
+          </form>
+
+          {/* Filter Toggle */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 20px',
+              backgroundColor: showFilters ? '#059669' : '#f3f4f6',
+              color: showFilters ? 'white' : '#374151',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '16px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              position: 'relative'
+            }}
+          >
+            <FiFilter />
+            Filters
+            {getActiveFiltersCount() > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '-8px',
+                right: '-8px',
+                backgroundColor: '#dc2626',
+                color: 'white',
+                borderRadius: '50%',
+                width: '20px',
+                height: '20px',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                {getActiveFiltersCount()}
+              </span>
+            )}
+          </button>
+
+          {/* View Mode Toggle */}
+          <div style={{ display: 'flex', border: '2px solid #e5e7eb', borderRadius: '10px', overflow: 'hidden' }}>
+            <button
+              onClick={() => setViewMode('grid')}
+              style={{
+                padding: '12px 16px',
+                backgroundColor: viewMode === 'grid' ? '#059669' : 'white',
+                color: viewMode === 'grid' ? 'white' : '#374151',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}
+            >
+              <FiGrid />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              style={{
+                padding: '12px 16px',
+                backgroundColor: viewMode === 'list' ? '#059669' : 'white',
+                color: viewMode === 'list' ? 'white' : '#374151',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}
+            >
+              <FiList />
+            </button>
+          </div>
         </div>
 
-      <div style={{ 
-        display: 'flex', 
-        gap: '30px',
-        flexDirection: 'column'
-      }}>
-        {/* Filters Sidebar */}
-        <div style={{
-          width: '100%',
-          backgroundColor: 'white',
-          padding: '25px',
-          borderRadius: '15px',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-          height: 'fit-content'
-        }}>
-          <h3 style={{
-            fontSize: '20px',
-            fontWeight: '600',
-            marginBottom: '20px',
-            color: '#1f2937'
+        {/* Advanced Filters */}
+        {showFilters && (
+          <div style={{
+            marginTop: '25px',
+            paddingTop: '25px',
+            borderTop: '1px solid #e5e7eb'
           }}>
-            Filters
-          </h3>
-
-          {/* Search Filter */}
-          <div style={{ marginBottom: '25px' }}>
-            <label style={{
-              display: 'block',
-              fontSize: '14px',
-              fontWeight: '500',
-              color: '#374151',
-              marginBottom: '10px'
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '20px',
+              marginBottom: '20px'
             }}>
-                  Search
-                </label>
-                  <input
-                    type="text"
-              placeholder="Search products..."
-                    value={filters.search}
-                    onChange={(e) => handleFilterChange('search', e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '2px solid #e5e7eb',
-                borderRadius: '8px',
-                fontSize: '14px',
-                outline: 'none'
-              }}
-            />
-              </div>
-
-          {/* Category Filter */}
-          <div style={{ marginBottom: '25px' }}>
-            <label style={{
-              display: 'block',
-              fontSize: '14px',
-              fontWeight: '500',
-              color: '#374151',
-              marginBottom: '10px'
-            }}>
+              {/* Category Filter */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
                   Category
                 </label>
                 <select
                   value={filters.category}
                   onChange={(e) => handleFilterChange('category', e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '2px solid #e5e7eb',
-                borderRadius: '8px',
-                fontSize: '14px',
-                outline: 'none'
-              }}
-            >
-                  {categories.map(category => (
-                <option key={category} value={category === 'All' ? '' : category}>
-                      {category}
-                    </option>
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '2px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    outline: 'none',
+                    backgroundColor: 'white'
+                  }}
+                >
+                  <option value="">All Categories</option>
+                  {categories.slice(1).map(category => (
+                    <option key={category} value={category}>{category}</option>
                   ))}
                 </select>
               </div>
 
-          {/* Price Range Filter */}
-          <div style={{ marginBottom: '25px' }}>
-            <label style={{
-              display: 'block',
-              fontSize: '14px',
-              fontWeight: '500',
-              color: '#374151',
-              marginBottom: '10px'
-            }}>
-                  Price Range
+              {/* Price Range */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Min Price
                 </label>
-            <div style={{ display: 'flex', gap: '10px' }}>
-                  <input
-                    type="number"
-                placeholder="Min"
-                    value={filters.minPrice}
-                    onChange={(e) => handleFilterChange('minPrice', e.target.value)}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  border: '2px solid #e5e7eb',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-                  />
-                  <input
-                    type="number"
-                placeholder="Max"
-                    value={filters.maxPrice}
-                    onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  border: '2px solid #e5e7eb',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-                  />
-                </div>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={filters.minPrice}
+                  onChange={(e) => handleFilterChange('minPrice', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '2px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
               </div>
 
-          {/* Sort By */}
-          <div>
-            <label style={{
-              display: 'block',
-              fontSize: '14px',
-              fontWeight: '500',
-              color: '#374151',
-              marginBottom: '10px'
-            }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Max Price
+                </label>
+                <input
+                  type="number"
+                  placeholder="1000"
+                  value={filters.maxPrice}
+                  onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '2px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Sort By */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
                   Sort By
                 </label>
                 <select
                   value={filters.sortBy}
                   onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '2px solid #e5e7eb',
-                borderRadius: '8px',
-                fontSize: '14px',
-                outline: 'none'
-              }}
-            >
-              <option value="newest">Newest</option>
-              <option value="price-low">Price: Low to High</option>
-              <option value="price-high">Price: High to Low</option>
-              <option value="rating">Highest Rated</option>
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '2px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    outline: 'none',
+                    backgroundColor: 'white'
+                  }}
+                >
+                  {sortOptions.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
 
-        {/* Products Grid */}
-        <div style={{ flex: 1 }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '30px'
-          }}>
-            <p style={{ color: '#6b7280' }}>
-              Showing {products.length} products
-            </p>
-          </div>
-
-          {products.length > 0 ? (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-              gap: '25px'
-            }}>
-              {products.map((product) => (
-                <div key={product.id} style={{
-                  backgroundColor: 'white',
-                  borderRadius: '15px',
-                  padding: '20px',
-                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                  transition: 'transform 0.2s',
-                  border: '1px solid #f3f4f6'
-                }}>
-                  <div style={{
-                    fontSize: '60px',
-                    textAlign: 'center',
-                    marginBottom: '15px'
-                  }}>
-                    {product.image || '📦'}
-                  </div>
-                  
-                  <h3 style={{
-                    fontSize: '18px',
-                    fontWeight: '600',
-                    color: '#1f2937',
-                    marginBottom: '10px',
-                    lineHeight: '1.4'
-                  }}>
-                    {product.name}
-                  </h3>
-
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                    <div style={{ display: 'flex', marginRight: '8px' }}>
-                      {[...Array(5)].map((_, i) => (
-                        <span key={i} style={{ color: i < Math.floor(product.rating || 4) ? '#fbbf24' : '#d1d5db', fontSize: '14px' }}>
-                          ⭐
-                        </span>
-                      ))}
-                    </div>
-                    <span style={{ color: '#6b7280', fontSize: '12px' }}>
-                      {product.rating || 4} ({product.reviews || 0})
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
-                    <span style={{
-                      fontSize: '20px',
-                      fontWeight: 'bold',
-                      color: '#059669'
-                    }}>
-                      ${product.price}
-                    </span>
-                    {product.originalPrice && (
-                      <span style={{
-                        fontSize: '16px',
-                        color: '#9ca3af',
-                        textDecoration: 'line-through'
-                      }}>
-                        ${product.originalPrice}
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '15px'
-                  }}>
-                    <span style={{
-                      fontSize: '12px',
-                      color: product.stock > 0 ? '#059669' : '#dc2626',
-                      fontWeight: '500'
-                    }}>
-                      {product.stock > 0 ? 'In Stock' : 'Out of Stock'}
-                    </span>
-                    <span style={{
-                      fontSize: '12px',
-                      color: '#6b7280',
-                      backgroundColor: '#f3f4f6',
-                      padding: '4px 8px',
-                      borderRadius: '4px'
-                    }}>
-                      {product.category || 'General'}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <Link
-                      to={`/products/${product.id}`}
-                      style={{
-                        flex: 1,
-                        backgroundColor: '#059669',
-                        color: 'white',
-                        padding: '10px 15px',
-                        borderRadius: '8px',
-                        textDecoration: 'none',
-                        textAlign: 'center',
-                        fontSize: '14px',
-                        fontWeight: '500'
-                      }}
-                    >
-                      View Details
-                    </Link>
-                    <button
-                      onClick={() => handleAddToCart(product.id)}
-                      disabled={product.stock === 0}
-                      style={{
-                        backgroundColor: product.stock > 0 ? '#f3f4f6' : '#e5e7eb',
-                        color: product.stock > 0 ? '#374151' : '#9ca3af',
-                        padding: '10px 15px',
-                        borderRadius: '8px',
-                        border: 'none',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        cursor: product.stock > 0 ? 'pointer' : 'not-allowed'
-                      }}
-                    >
-                      🛒
-                    </button>
-                  </div>
-                </div>
-              ))}
-              </div>
-            ) : (
-            <div style={{
-              textAlign: 'center',
-              padding: '60px 20px',
-              backgroundColor: 'white',
-              borderRadius: '15px',
-              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-            }}>
-              <div style={{ fontSize: '80px', marginBottom: '20px' }}>🔍</div>
-              <h2 style={{
-                fontSize: '24px',
-                fontWeight: '600',
-                color: '#1f2937',
-                marginBottom: '10px'
-              }}>
-                No products found
-              </h2>
-              <p style={{ color: '#6b7280', marginBottom: '30px' }}>
-                Try adjusting your filters or search terms.
-              </p>
+            {/* Clear Filters */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <button
-                onClick={() => setFilters({ category: '', search: '', sortBy: 'newest', minPrice: '', maxPrice: '' })}
+                onClick={clearFilters}
                 style={{
-                  backgroundColor: '#059669',
-                  color: 'white',
-                  padding: '15px 30px',
-                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 20px',
+                  backgroundColor: '#f3f4f6',
+                  color: '#374151',
                   border: 'none',
-                  fontSize: '16px',
-                  fontWeight: '600',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '500',
                   cursor: 'pointer'
                 }}
               >
-                Clear Filters
+                <FiX />
+                Clear All Filters
               </button>
+              
+              <div style={{ color: '#6b7280', fontSize: '14px' }}>
+                {products.length} products found
               </div>
-            )}
-        </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Products Grid/List */}
+      {products.length === 0 ? (
+        <div style={{
+          textAlign: 'center',
+          padding: '60px 20px',
+          backgroundColor: 'white',
+          borderRadius: '15px',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+        }}>
+          <div style={{ fontSize: '80px', marginBottom: '20px' }}>🔍</div>
+          <h2 style={{
+            fontSize: '24px',
+            fontWeight: '600',
+            color: '#1f2937',
+            marginBottom: '10px'
+          }}>
+            No products found
+          </h2>
+          <p style={{ color: '#6b7280', marginBottom: '30px' }}>
+            Try adjusting your search or filter criteria
+          </p>
+          <button
+            onClick={clearFilters}
+            style={{
+              backgroundColor: '#059669',
+              color: 'white',
+              padding: '12px 24px',
+              borderRadius: '8px',
+              border: 'none',
+              fontSize: '16px',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            Clear Filters
+          </button>
+        </div>
+      ) : (
+        <div style={{
+          display: viewMode === 'grid' ? 'grid' : 'flex',
+          gridTemplateColumns: viewMode === 'grid' ? 'repeat(auto-fill, minmax(300px, 1fr))' : 'none',
+          flexDirection: viewMode === 'list' ? 'column' : 'row',
+          gap: '25px'
+        }}>
+          {products.map((product) => (
+            <ProductCard key={product.id} product={product} />
+          ))}
+        </div>
+      )}
     </div>
   );
 };

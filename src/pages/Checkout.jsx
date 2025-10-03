@@ -1,34 +1,138 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useCart } from '../contexts/CartContext';
+import { useOrders } from '../contexts/OrdersContext';
+import { useAuth } from '../contexts/AuthContext';
+
+const CheckoutForm = ({ cartItems, cartTotals, onSuccess, onError }) => {
+  const { createOrder } = useOrders();
+  const { user } = useAuth();
+  const [processing, setProcessing] = useState(false);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setProcessing(true);
+
+    try {
+      // For now, we'll create orders directly without payment processing
+      // In a real implementation, you'd process payment first
+      const orderPromises = cartItems.map(item => 
+        createOrder(item.product_id, {
+          userId: user.id,
+          quantity: item.quantity
+        })
+      );
+
+      const results = await Promise.all(orderPromises);
+      const allSuccessful = results.every(result => result.success);
+
+      if (allSuccessful) {
+        onSuccess();
+      } else {
+        onError('Some orders failed to process');
+      }
+    } catch (error) {
+      onError('Failed to process orders');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ marginTop: '20px' }}>
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '15px',
+        padding: '30px',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        marginBottom: '30px'
+      }}>
+        <h2 style={{
+          fontSize: '24px',
+          fontWeight: 'bold',
+          color: '#1f2937',
+          marginBottom: '20px'
+        }}>
+          Payment Information
+        </h2>
+        
+        <div style={{
+          padding: '20px',
+          border: '2px solid #059669',
+          borderRadius: '10px',
+          marginBottom: '20px',
+          backgroundColor: '#f0fdf4'
+        }}>
+          <p style={{
+            fontSize: '16px',
+            color: '#166534',
+            textAlign: 'center',
+            margin: 0,
+            fontWeight: '500'
+          }}>
+            💳 Secure Payment Processing with Stripe
+          </p>
+        </div>
+        
+        <p style={{
+          fontSize: '14px',
+          color: '#6b7280',
+          marginBottom: '20px'
+        }}>
+          * You will be redirected to our secure payment processor to complete your order.
+        </p>
+      </div>
+
+      <button
+        type="submit"
+        disabled={processing}
+        style={{
+          width: '100%',
+          backgroundColor: processing ? '#9ca3af' : '#059669',
+          color: 'white',
+          padding: '15px 30px',
+          borderRadius: '10px',
+          border: 'none',
+          fontSize: '16px',
+          fontWeight: '600',
+          cursor: processing ? 'not-allowed' : 'pointer',
+          marginTop: '20px'
+        }}
+      >
+{processing ? 'Processing...' : `Proceed to Secure Payment - $${cartTotals.total.toFixed(2)}`}
+      </button>
+    </form>
+  );
+};
 
 const Checkout = () => {
+  const navigate = useNavigate();
+  const { cartItems, getCartTotals, clearCart } = useCart();
+  const { isAuthenticated, user } = useAuth();
   const [formData, setFormData] = useState({
-    email: '',
-    firstName: '',
-    lastName: '',
+    email: user?.email || '',
+    firstName: user?.name?.split(' ')[0] || '',
+    lastName: user?.name?.split(' ')[1] || '',
     address: '',
     city: '',
     zipCode: '',
-    cardNumber: '',
-    expiryDate: '',
-    cvv: ''
+    country: 'US'
   });
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
 
-  const cartItems = [
-    { name: "Wireless Bluetooth Headphones", price: 99.99, quantity: 2 },
-    { name: "Smart Fitness Watch", price: 199.99, quantity: 1 }
-  ];
+  const cartTotals = getCartTotals();
 
-  const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const shipping = 9.99;
-  const tax = subtotal * 0.08;
-  const total = subtotal + shipping + tax;
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    console.log('Checkout:', formData);
-    // Handle checkout logic
-  };
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    if (cartItems.length === 0) {
+      navigate('/cart');
+      return;
+    }
+  }, [isAuthenticated, cartItems.length, navigate]);
 
   const handleChange = (e) => {
     setFormData({
@@ -36,6 +140,68 @@ const Checkout = () => {
       [e.target.name]: e.target.value
     });
   };
+
+  const handleSuccess = () => {
+    // Navigate to payment page with order data (don't clear cart yet)
+    const orderData = {
+      amount: cartTotals.total,
+      currency: 'usd',
+      items: cartItems.map(item => ({
+        name: item.product?.name || item.name || `Product ${item.product_id}`,
+        quantity: item.quantity,
+        price: item.product?.price || item.price || 0,
+        product_id: item.product_id
+      })),
+      customer: {
+        name: user?.name || user?.username || (formData.firstName + ' ' + formData.lastName),
+        email: user?.email || formData.email
+      },
+      isDirectPurchase: false
+    };
+    
+    navigate('/payment', { state: { orderData } });
+  };
+
+  const handleError = (errorMessage) => {
+    setError(errorMessage);
+  };
+
+  if (success) {
+    return (
+      <div style={{ padding: '40px 20px', maxWidth: '1200px', margin: '0 auto', textAlign: 'center' }}>
+        <div style={{ fontSize: '80px', marginBottom: '20px' }}>✅</div>
+        <h1 style={{
+          fontSize: '36px',
+          fontWeight: 'bold',
+          color: '#059669',
+          marginBottom: '20px'
+        }}>
+          Order Placed Successfully!
+        </h1>
+        <p style={{ color: '#6b7280', marginBottom: '30px' }}>
+          Thank you for your purchase. You will receive an email confirmation shortly.
+        </p>
+        <Link
+          to="/orders"
+          style={{
+            backgroundColor: '#059669',
+            color: 'white',
+            padding: '15px 30px',
+            borderRadius: '10px',
+            textDecoration: 'none',
+            fontSize: '16px',
+            fontWeight: '600'
+          }}
+        >
+          View Orders
+        </Link>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || cartItems.length === 0) {
+    return null; // Will redirect
+  }
 
   return (
     <div style={{ padding: '40px 20px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -48,10 +214,9 @@ const Checkout = () => {
         Checkout
       </h1>
 
-      <div style={{ display: 'flex', gap: '30px' }}>
+      <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
         {/* Checkout Form */}
-        <div style={{ flex: 2 }}>
-          <form onSubmit={handleSubmit}>
+        <div style={{ flex: 2, minWidth: '300px' }}>
             {/* Contact Information */}
             <div style={{
               backgroundColor: 'white',
@@ -198,82 +363,17 @@ const Checkout = () => {
               </div>
             </div>
 
-            {/* Payment Information */}
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '15px',
-              padding: '30px',
-              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-            }}>
-              <h2 style={{
-                fontSize: '24px',
-                fontWeight: 'bold',
-                color: '#1f2937',
-                marginBottom: '20px'
-              }}>
-                Payment Information
-              </h2>
-              <div style={{ marginBottom: '20px' }}>
-                <input
-                  type="text"
-                  name="cardNumber"
-                  placeholder="Card number"
-                  value={formData.cardNumber}
-                  onChange={handleChange}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '10px',
-                    fontSize: '16px',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: '15px' }}>
-                <input
-                  type="text"
-                  name="expiryDate"
-                  placeholder="MM/YY"
-                  value={formData.expiryDate}
-                  onChange={handleChange}
-                  required
-                  style={{
-                    flex: 1,
-                    padding: '12px 16px',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '10px',
-                    fontSize: '16px',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
-                <input
-                  type="text"
-                  name="cvv"
-                  placeholder="CVV"
-                  value={formData.cvv}
-                  onChange={handleChange}
-                  required
-                  style={{
-                    flex: 1,
-                    padding: '12px 16px',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '10px',
-                    fontSize: '16px',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-            </div>
-          </form>
+          {/* Payment Section */}
+          <CheckoutForm
+            cartItems={cartItems}
+            cartTotals={cartTotals}
+            onSuccess={handleSuccess}
+            onError={handleError}
+          />
         </div>
 
         {/* Order Summary */}
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: '300px' }}>
           <div style={{
             backgroundColor: 'white',
             borderRadius: '15px',
@@ -300,14 +400,14 @@ const Checkout = () => {
               }}>
                 <div>
                   <div style={{ fontWeight: '500', color: '#374151' }}>
-                    {item.name}
+                    {item.product?.name || item.name || `Product ${item.product_id}`}
                   </div>
                   <div style={{ fontSize: '14px', color: '#6b7280' }}>
                     Qty: {item.quantity}
                   </div>
                 </div>
                 <div style={{ fontWeight: '500', color: '#1f2937' }}>
-                  ${(item.price * item.quantity).toFixed(2)}
+                  ${((item.product?.price || item.price || 0) * item.quantity).toFixed(2)}
                 </div>
               </div>
             ))}
@@ -320,7 +420,7 @@ const Checkout = () => {
                 color: '#374151'
               }}>
                 <span>Subtotal:</span>
-                <span>${subtotal.toFixed(2)}</span>
+                <span>${cartTotals.subtotal.toFixed(2)}</span>
               </div>
               <div style={{
                 display: 'flex',
@@ -329,7 +429,7 @@ const Checkout = () => {
                 color: '#374151'
               }}>
                 <span>Shipping:</span>
-                <span>${shipping.toFixed(2)}</span>
+                <span>{cartTotals.shipping === 0 ? 'Free' : `$${cartTotals.shipping.toFixed(2)}`}</span>
               </div>
               <div style={{
                 display: 'flex',
@@ -338,7 +438,7 @@ const Checkout = () => {
                 color: '#374151'
               }}>
                 <span>Tax:</span>
-                <span>${tax.toFixed(2)}</span>
+                <span>${cartTotals.tax.toFixed(2)}</span>
               </div>
               <div style={{
                 borderTop: '2px solid #e5e7eb',
@@ -350,27 +450,23 @@ const Checkout = () => {
                 color: '#1f2937'
               }}>
                 <span>Total:</span>
-                <span>${total.toFixed(2)}</span>
+                <span>${cartTotals.total.toFixed(2)}</span>
               </div>
             </div>
 
-            <button
-              onClick={handleSubmit}
-              style={{
-                width: '100%',
-                backgroundColor: '#059669',
-                color: 'white',
-                padding: '15px 30px',
-                borderRadius: '10px',
-                border: 'none',
-                fontSize: '16px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                marginTop: '20px'
-              }}
-            >
-              Complete Order
-            </button>
+            {error && (
+              <div style={{
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#dc2626',
+                padding: '12px',
+                borderRadius: '8px',
+                marginTop: '20px',
+                fontSize: '14px'
+              }}>
+                {error}
+              </div>
+            )}
           </div>
         </div>
       </div>

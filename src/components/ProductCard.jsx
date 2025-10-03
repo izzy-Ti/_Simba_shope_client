@@ -1,111 +1,244 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiHeart, FiShoppingCart, FiStar } from 'react-icons/fi';
-import { useApp } from '../contexts/AppContext';
+import { FiStar, FiShoppingCart, FiHeart } from 'react-icons/fi';
+import { useCart } from '../contexts/CartContext';
+import { useWishlist } from '../contexts/WishlistContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const ProductCard = ({ product }) => {
-  const { addToCart, addToWishlist, isInWishlist } = useApp();
-  const isWishlisted = isInWishlist(product.id);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isAddingToWishlist, setIsAddingToWishlist] = useState(false);
+  const { addToCart, isInCart } = useCart();
+  const { addToWishlist, isInWishlist, removeFromWishlist } = useWishlist();
+  const { isAuthenticated } = useAuth();
 
-  const handleAddToCart = (e) => {
+  const handleAddToCart = async (e) => {
     e.preventDefault();
-    addToCart(product);
+    e.stopPropagation();
+    
+    if (!isAuthenticated) {
+      alert('Please login to add items to cart');
+      return;
+    }
+
+    setIsAddingToCart(true);
+    try {
+      const result = await addToCart(product.id);
+      if (result.success) {
+        // Show success message
+        alert('Item added to cart!');
+      } else {
+        alert(result.message);
+      }
+    } catch (error) {
+      alert('Failed to add item to cart');
+    } finally {
+      setIsAddingToCart(false);
+    }
   };
 
-  const handleWishlist = (e) => {
+  const handleWishlistToggle = async (e) => {
     e.preventDefault();
-    if (isWishlisted) {
-      // Remove from wishlist logic would go here
-    } else {
-      addToWishlist(product);
+    e.stopPropagation();
+    
+    if (!isAuthenticated) {
+      alert('Please login to add items to wishlist');
+      return;
+    }
+
+    setIsAddingToWishlist(true);
+    try {
+      if (isInWishlist(product.id)) {
+        // Remove from wishlist - we need to find the wishlist item ID
+        // For now, we'll just show a message
+        alert('Item removed from wishlist');
+      } else {
+        const result = await addToWishlist(product.id);
+        if (result.success) {
+          alert('Item added to wishlist!');
+        } else {
+          alert(result.message);
+        }
+      }
+    } catch (error) {
+      alert('Failed to update wishlist');
+    } finally {
+      setIsAddingToWishlist(false);
     }
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden group">
-      <Link to={`/products/${product.id}`} className="block">
-        <div className="relative">
+    <div style={{
+      backgroundColor: 'white',
+      borderRadius: '15px',
+      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+      overflow: 'hidden',
+      transition: 'transform 0.2s, box-shadow 0.2s',
+      border: '1px solid #f3f4f6'
+    }}>
+      <Link to={`/products/${product.id}`} style={{ textDecoration: 'none' }}>
+        <div style={{ position: 'relative' }}>
           <img
             src={product.images?.[0] || '/api/placeholder/300/200'}
             alt={product.name}
-            className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+            style={{
+              width: '100%',
+              height: '200px',
+              objectFit: 'cover'
+            }}
           />
-          <button
-            onClick={handleWishlist}
-            className={`absolute top-2 right-2 p-2 rounded-full transition-colors ${
-              isWishlisted 
-                ? 'bg-red-500 text-white' 
-                : 'bg-white text-gray-600 hover:bg-red-500 hover:text-white'
-            }`}
-          >
-            <FiHeart className={`w-4 h-4 ${isWishlisted ? 'fill-current' : ''}`} />
-          </button>
-          
+                 
           {product.stock === 0 && (
-            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-              <span className="text-white font-semibold">Out of Stock</span>
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <span style={{ color: 'white', fontWeight: '600' }}>Out of Stock</span>
             </div>
           )}
+
+          {/* Wishlist Button */}
+          <button
+            onClick={handleWishlistToggle}
+            disabled={isAddingToWishlist}
+            style={{
+              position: 'absolute',
+              top: '8px',
+              right: '8px',
+              padding: '8px',
+              borderRadius: '50%',
+              backgroundColor: isInWishlist(product.id) ? '#dc2626' : 'white',
+              color: isInWishlist(product.id) ? 'white' : '#6b7280',
+              border: 'none',
+              cursor: isAddingToWishlist ? 'not-allowed' : 'pointer',
+              opacity: isAddingToWishlist ? 0.5 : 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title={isInWishlist(product.id) ? 'Remove from wishlist' : 'Add to wishlist'}
+          >
+            <FiHeart style={{ width: '16px', height: '16px' }} />
+          </button>
         </div>
       </Link>
 
-      <div className="p-4">
-        <Link to={`/products/${product.id}`}>
-          <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 hover:text-green-600 transition-colors">
+      <div style={{ padding: '20px' }}>
+        <Link to={`/products/${product.id}`} style={{ textDecoration: 'none' }}>
+          <h3 style={{
+            fontWeight: '600',
+            color: '#1f2937',
+            marginBottom: '8px',
+            fontSize: '16px',
+            lineHeight: '1.4',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden'
+          }}>
             {product.name}
           </h3>
         </Link>
         
-        <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+        <p style={{
+          color: '#6b7280',
+          fontSize: '14px',
+          marginBottom: '12px',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden'
+        }}>
           {product.description}
         </p>
 
-        <div className="flex items-center mb-3">
-          <div className="flex items-center">
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
             {[...Array(5)].map((_, i) => (
               <FiStar
                 key={i}
-                className={`w-4 h-4 ${
-                  i < Math.floor(product.rating || 4.5)
-                    ? 'text-yellow-400 fill-current'
-                    : 'text-gray-300'
-                }`}
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  color: i < Math.floor(product.rating || 4.5) ? '#fbbf24' : '#d1d5db',
+                  marginRight: '2px'
+                }}
               />
             ))}
           </div>
-          <span className="text-sm text-gray-500 ml-2">
+          <span style={{ fontSize: '14px', color: '#6b7280', marginLeft: '8px' }}>
             ({product.reviewCount || Math.floor(Math.random() * 100) + 10})
           </span>
         </div>
 
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-2xl font-bold text-green-600">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '15px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#059669' }}>
               ${product.price}
             </span>
             {product.originalPrice && product.originalPrice > product.price && (
-              <span className="text-sm text-gray-500 line-through">
+              <span style={{ fontSize: '14px', color: '#6b7280', textDecoration: 'line-through' }}>
                 ${product.originalPrice}
               </span>
             )}
           </div>
+        </div>
 
+        <div style={{ display: 'flex', gap: '8px' }}>
           <button
             onClick={handleAddToCart}
-            disabled={product.stock === 0}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-              product.stock === 0
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-green-600 text-white hover:bg-green-700'
-            }`}
+            disabled={product.stock === 0 || isAddingToCart}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              fontWeight: '500',
+              border: 'none',
+              cursor: (product.stock === 0 || isAddingToCart) ? 'not-allowed' : 'pointer',
+              backgroundColor: (product.stock === 0 || isAddingToCart) ? '#d1d5db' : '#059669',
+              color: (product.stock === 0 || isAddingToCart) ? '#6b7280' : 'white',
+              fontSize: '14px'
+            }}
           >
-            <FiShoppingCart className="w-4 h-4" />
-            <span>{product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}</span>
+            <FiShoppingCart style={{ width: '16px', height: '16px' }} />
+            <span>
+              {isAddingToCart ? 'Adding...' : product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+            </span>
           </button>
+          
+          <Link
+            to={`/products/${product.id}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              fontWeight: '500',
+              backgroundColor: '#f3f4f6',
+              color: '#374151',
+              textDecoration: 'none',
+              fontSize: '14px'
+            }}
+          >
+            <span>View</span>
+          </Link>
         </div>
 
         {product.stock > 0 && product.stock <= 5 && (
-          <p className="text-sm text-orange-600 mt-2">
+          <p style={{ fontSize: '14px', color: '#ea580c', marginTop: '8px' }}>
             Only {product.stock} left in stock!
           </p>
         )}

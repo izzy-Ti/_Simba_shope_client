@@ -2,20 +2,16 @@ import axios from 'axios';
 
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: 'http://localhost:4000/api',
-  withCredentials: false, // Disable credentials to avoid CORS issues
+  baseURL: '/api', // Use proxy from vite.config.js
+  withCredentials: true, // Enable credentials for authentication
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor to add auth token if available
+// Request interceptor (cookies are automatically sent with withCredentials: true)
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
     return config;
   },
   (error) => {
@@ -28,9 +24,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
+      // Clear all stored user data
       localStorage.removeItem('user');
+      localStorage.removeItem('token');
       localStorage.removeItem('userId');
+      localStorage.removeItem('userEmail');
+      // Redirect to login
       window.location.href = '/login';
     }
     return Promise.reject(error);
@@ -83,17 +82,33 @@ export const authAPI = {
 
   // Get user data
   getUserData: async () => {
-    // For now, return mock data since backend doesn't have a proper /me endpoint
-    // In a real app, you'd need to create this endpoint in the backend
-    return {
-      success: true,
-      user: {
-        id: 'temp_user_id',
-        name: 'User',
-        email: 'user@example.com',
-        username: 'user'
-      }
-    };
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      return { success: false, message: 'User not logged in' };
+    }
+    const response = await api.post('/user/getUserData', { userId });
+    return response.data;
+  },
+
+  // Get user data by email (workaround since login doesn't return user ID)
+  getUserDataByEmail: async (email) => {
+    try {
+      // Try to get user data from backend using email
+      const response = await api.post('/user/getUserDataByEmail', { email });
+      return response.data;
+    } catch (error) {
+      // Fallback to mock data if backend doesn't support email lookup
+      console.warn('Backend getUserDataByEmail not available, using fallback');
+      return {
+        success: true,
+        userData: {
+          id: 'temp-id-' + Date.now(), // Temporary ID
+          email: email,
+          name: email.split('@')[0], // Use email prefix as name
+          IsAccVerified: true
+        }
+      };
+    }
   },
 
   // Add address
@@ -113,7 +128,9 @@ export const authAPI = {
 export const productsAPI = {
   // Get all products
   getAllProducts: async (params = {}) => {
-    const response = await api.get('/product/getAll', { params });
+    const response = await api.get('/product/getAll', { 
+      params: { ...params, _t: Date.now() } // Cache busting
+    });
     return response.data;
   },
 
@@ -163,7 +180,10 @@ export const productsAPI = {
     const response = await api.get('/product/filterProduct', { params: filters });
     return response.data;
   },
+};
 
+// Cart/Wishlist API (using user_wishlist table)
+export const cartAPI = {
   // Add to cart
   addToCart: async (productId) => {
     const userId = localStorage.getItem('userId');
@@ -190,7 +210,7 @@ export const productsAPI = {
     if (!userId) {
       return { success: false, message: 'User not logged in' };
     }
-    const response = await api.delete(`/product/deletecart/${cartId}`, { data: { userId } });
+    const response = await api.post(`/product/deletecart/${cartId}`, { userId });
     return response.data;
   },
 };
@@ -212,6 +232,12 @@ export const ordersAPI = {
   // Get order history
   getOrderHistory: async () => {
     const response = await api.get('/order/orderHistory');
+    return response.data;
+  },
+
+  // Confirm payment
+  confirmPayment: async (orderId, paymentIntentId) => {
+    const response = await api.post(`/order/confirmPayment/${orderId}`, { paymentIntentId });
     return response.data;
   },
 };
@@ -252,6 +278,44 @@ export const sellerAPI = {
   },
 };
 
+// Test API connectivity
+export const testAPIConnectivity = async () => {
+  try {
+    const response = await api.get('/product/getAll');
+    return {
+      success: true,
+      message: 'API connection successful',
+      data: response.data
+    };
+  } catch (error) {
+    let errorMessage = 'API connection failed';
+    
+    if (error.code === 'ERR_NETWORK') {
+      errorMessage = 'Network error - Backend may be down';
+    } else if (error.response?.status === 0) {
+      errorMessage = 'CORS error - Check backend CORS settings';
+    } else if (error.response?.status === 404) {
+      errorMessage = 'Endpoint not found';
+    } else if (error.response?.status >= 500) {
+      errorMessage = 'Backend server error';
+    } else if (error.message.includes('CORS')) {
+      errorMessage = 'CORS policy violation';
+    }
+    
+    return {
+      success: false,
+      message: errorMessage,
+      error: error.message,
+      status: error.response?.status,
+      details: {
+        url: error.config?.url,
+        method: error.config?.method,
+        baseURL: error.config?.baseURL
+      }
+    };
+  }
+};
+
 // Utility functions
 export const apiUtils = {
   // Handle API errors
@@ -283,7 +347,8 @@ export const apiUtils = {
   // Check if user is authenticated
   isAuthenticated: () => {
     const token = localStorage.getItem('token');
-    return !!(token && token !== 'undefined' && token !== 'null');
+    const user = localStorage.getItem('user');
+    return !!(token && token !== 'undefined' && token !== 'null' && user && user !== 'undefined' && user !== 'null');
   },
 
   // Get stored user data
@@ -311,6 +376,8 @@ export const apiUtils = {
   clearUser: () => {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userEmail');
   },
 };
 

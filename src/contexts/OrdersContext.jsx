@@ -16,7 +16,16 @@ export const OrdersProvider = ({ children }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const { isAuthenticated } = useAuth();
+  
+  // Safely get auth context
+  let isAuthenticated = false;
+  try {
+    const authContext = useAuth();
+    isAuthenticated = authContext.isAuthenticated;
+  } catch (error) {
+    // Auth context not available yet
+    console.log('Auth context not ready yet');
+  }
 
   // Load orders when user is authenticated
   useEffect(() => {
@@ -25,12 +34,13 @@ export const OrdersProvider = ({ children }) => {
     } else {
       setOrders([]);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadOrderHistory = async () => {
     try {
       setLoading(true);
       setError(null);
+      
       const response = await ordersAPI.getOrderHistory();
       
       if (response.success) {
@@ -56,9 +66,36 @@ export const OrdersProvider = ({ children }) => {
       const response = await ordersAPI.createOrder(productId, orderData);
       
       if (response.success) {
+        return { 
+          success: true, 
+          message: response.message, 
+          orderId: response.orderId,
+          paymentIntent: response.paymentIntent
+        };
+      } else {
+        return { success: false, message: response.message };
+      }
+    } catch (error) {
+      const errorData = apiUtils.handleError(error);
+      return { success: false, message: errorData.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmPayment = async (orderId, paymentIntentId) => {
+    if (!isAuthenticated) {
+      return { success: false, message: 'Please login to confirm payment' };
+    }
+
+    try {
+      setLoading(true);
+      const response = await ordersAPI.confirmPayment(orderId, paymentIntentId);
+      
+      if (response.success) {
         // Reload orders
         await loadOrderHistory();
-        return { success: true, message: response.message, order: response.order };
+        return { success: true, message: response.message };
       } else {
         return { success: false, message: response.message };
       }
@@ -108,6 +145,7 @@ export const OrdersProvider = ({ children }) => {
     error,
     loadOrderHistory,
     createOrder,
+    confirmPayment,
     updateOrder,
     getOrderById,
     getOrdersByStatus,
