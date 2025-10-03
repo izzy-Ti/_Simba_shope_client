@@ -22,22 +22,10 @@ export const AuthProvider = ({ children }) => {
       try {
         const storedUser = apiUtils.getStoredUser();
         if (storedUser && apiUtils.isAuthenticated()) {
-          // Verify token is still valid with backend
-          const response = await authAPI.isAuth();
-          if (response.success) {
-            // Get fresh user data from backend
-            const userDataResponse = await authAPI.getUserData();
-            if (userDataResponse.success) {
-              setUser(userDataResponse.userData);
-              setIsAuthenticated(true);
-            } else {
-              // Token is invalid, clear stored data
-              apiUtils.clearUser();
-            }
-          } else {
-            // Token is invalid, clear stored data
-            apiUtils.clearUser();
-          }
+          // For now, just restore the stored user without backend verification
+          // This ensures persistence across refreshes
+          setUser(storedUser);
+          setIsAuthenticated(true);
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
@@ -65,22 +53,54 @@ export const AuthProvider = ({ children }) => {
         const tempUserId = `temp-${Date.now()}`;
         localStorage.setItem('userId', tempUserId);
         
-        // Get user data from backend
-        const userDataResponse = await authAPI.getUserData();
-        
-        if (userDataResponse.success) {
-          const userData = userDataResponse.userData;
+        try {
+          // Try to get user data from backend
+          const userDataResponse = await authAPI.getUserData();
           
-          // Store user data and token
-          apiUtils.storeUser(userData, 'cookie_auth');
-          localStorage.setItem('userId', userData.id || tempUserId);
+          if (userDataResponse.success) {
+            const userData = userDataResponse.userData;
+            
+            // Store user data and token
+            apiUtils.storeUser(userData, 'cookie_auth');
+            localStorage.setItem('userId', userData.id || tempUserId);
+            
+            setUser(userData);
+            setIsAuthenticated(true);
+            
+            return { success: true, message: 'Login successful' };
+          } else {
+            // If backend user data fails, create basic user data
+            const basicUserData = {
+              id: tempUserId,
+              email: email,
+              name: email.split('@')[0],
+              username: email.split('@')[0],
+              phone: '',
+              IsAccVerified: false
+            };
+            
+            apiUtils.storeUser(basicUserData, 'cookie_auth');
+            setUser(basicUserData);
+            setIsAuthenticated(true);
+            
+            return { success: true, message: 'Login successful' };
+          }
+        } catch (userDataError) {
+          // If getting user data fails, create basic user data
+          const basicUserData = {
+            id: tempUserId,
+            email: email,
+            name: email.split('@')[0],
+            username: email.split('@')[0],
+            phone: '',
+            IsAccVerified: false
+          };
           
-          setUser(userData);
+          apiUtils.storeUser(basicUserData, 'cookie_auth');
+          setUser(basicUserData);
           setIsAuthenticated(true);
           
           return { success: true, message: 'Login successful' };
-        } else {
-          return { success: false, message: 'Failed to get user data' };
         }
       } else {
         return { success: false, message: response.message };

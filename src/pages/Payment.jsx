@@ -12,7 +12,9 @@ import {
 } from '@stripe/react-stripe-js';
 
 // Initialize Stripe
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_stripe_key_here');
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_stripe_key_here';
+console.log('Stripe Key loaded:', stripeKey ? `${stripeKey.substring(0, 20)}...` : 'NOT FOUND');
+const stripePromise = loadStripe(stripeKey);
 
 // Simulate backend payment processing
 const simulateBackendPayment = async (paymentMethod, orderData) => {

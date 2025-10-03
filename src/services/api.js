@@ -348,7 +348,10 @@ export const apiUtils = {
   isAuthenticated: () => {
     const token = localStorage.getItem('token');
     const user = localStorage.getItem('user');
-    return !!(token && token !== 'undefined' && token !== 'null' && user && user !== 'undefined' && user !== 'null');
+    const userId = localStorage.getItem('userId');
+    return !!(token && token !== 'undefined' && token !== 'null' && 
+              user && user !== 'undefined' && user !== 'null' &&
+              userId && userId !== 'undefined' && userId !== 'null');
   },
 
   // Get stored user data
